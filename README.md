@@ -3,6 +3,8 @@
 HTTP Man In The Middle (MITM) Proxy written in node.js. Supports capturing and modifying the request and response data.
 
 [![](https://david-dm.org/joeferner/node-http-mitm-proxy.svg)](https://david-dm.org/joeferner/node-http-mitm-proxy)
+[![Build Status](https://travis-ci.org/joeferner/node-http-mitm-proxy.svg?branch=master)](https://travis-ci.org/joeferner/node-http-mitm-proxy)
+
 
 # Install
 
@@ -111,12 +113,15 @@ Starts the proxy listening on the given port.
 __Arguments__
 
  * options - An object with the following options:
-  * port - The port to listen on (default: 8080).
+  * port - The port or named socket to listen on (default: 8080).
   * sslCaDir - Path to the certificates cache directory (default: process.cwd() + '/.http-mitm-proxy')
   * silent - if set to true, nothing will be written to console (default: false)
   * timeout - The number of milliseconds of inactivity before a socket is presumed to have timed out. Defaults to no timeout.
-  * httpAgent - The [http.Agent](https://nodejs.org/api/http.html#http_class_http_agent) to use when making http requests. Useful for chaining proxys. Defaults to an internal Agent.
-  * httpsAgent - The [https.Agent](https://nodejs.org/api/https.html#https_class_https_agent) to use when making https requests. Useful for chaining proxys. Defaults to an internal Agent.
+  * httpAgent - The [http.Agent](https://nodejs.org/api/http.html#http_class_http_agent) to use when making http requests. Useful for chaining proxys. (default: internal Agent)
+  * httpsAgent - The [https.Agent](https://nodejs.org/api/https.html#https_class_https_agent) to use when making https requests. Useful for chaining proxys. (default: internal Agent)
+  * forceSNI - force use of [SNI](https://en.wikipedia.org/wiki/Server_Name_Indication) by the client. Allow node-http-mitm-proxy to handle all HTTPS requests with a single internal server.
+  * httpsPort - The port or named socket for https server to listen on. _(forceSNI must be enabled)_
+  * useNamedSocket - use named socket (i.e. unix socket or named pipe) instead of TCP ports for internal server(s)
 
 __Example__
 
@@ -160,14 +165,25 @@ __Arguments__
  * hostname - Requested hostname.
  * callback - The function to be called when certificate files' path were already computed.
 
-__Example__
+__Example 1__
 
     proxy.onCertificateRequired = function(hostname, callback) {
       return callback(null, {
         keyFile: path.resolve('/ca/certs/', hostname + '.key'),
         certFile: path.resolve('/ca/certs/', hostname + '.crt')
-        });
+      });
     };
+
+__Example 2: Wilcard certificates__
+
+    proxy.onCertificateRequired = function(hostname, callback) {
+      return callback(null, {
+        keyFile: path.resolve('/ca/certs/', hostname + '.key'),
+        certFile: path.resolve('/ca/certs/', hostname + '.crt'),
+        hosts: ["*.mydomain.com"]
+      });
+    };
+
 
 <a name="proxy_onCertificateMissing" />
 ### proxy.onCertificateMissing = function(ctx, files, callback)
@@ -180,10 +196,10 @@ __Arguments__
  * hostname - The hostname which requires certificates
  * data.keyFileExists - Whether key file exists or not
  * data.certFileExists - Whether certificate file exists or not
-* files - missing files names (`files.keyFile` and `files.certFile`)
+* files - missing files names (`files.keyFile`, `files.certFile` and optional `files.hosts`)
 * callback - The function to be called to pass certificate data back (`keyFileData` and `certFileData`)
 
-__Example__
+__Example 1__
 
     proxy.onCertificateMissing = function(ctx, files, callback) {
       console.log('Looking for "%s" certificates',   ctx.hostname);
@@ -198,6 +214,17 @@ __Example__
       //   certFileData: certFileData
       // });
       };
+
+__Example 2: Wilcard certificates__
+
+    proxy.onCertificateMissing = function(ctx, files, callback) {
+      return callback(null, {
+        keyFileData: keyFileData,
+        certFileData: certFileData,
+        hosts: ["*.mydomain.com"]
+      });
+    };
+
 
 <a name="proxy_onRequest" />
 ### proxy.onRequest(fn) or ctx.onRequest(fn)
@@ -423,6 +450,10 @@ __Example__
       onWebSocketClose: function(ctx, code, message, callback) {  },
     });
 
+node-http-mitm-proxy provide some ready to use modules:
+- `Proxy.gunzip` Gunzip response filter (uncompress gzipped content before onResponseData and compress back after)
+- `Proxy.wildcard` Generates wilcard certificates by default (so less certificates are generated)
+
 <a name="context"/>
 ## Context
 
@@ -479,3 +510,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
